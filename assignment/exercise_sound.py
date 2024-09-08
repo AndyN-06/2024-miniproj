@@ -16,24 +16,37 @@ speaker = machine.PWM(machine.Pin(SPEAKER_PIN))
 
 
 def playtone(frequency: float, duration: float) -> None:
-    speaker.duty_u16(1000)
-    speaker.freq(frequency)
+    if frequency == 0:
+        quiet()
+    else:
+        speaker.duty_u16(1000)
+        speaker.freq(int(frequency))
     utime.sleep(duration)
+    quiet()
 
 
 def quiet():
     speaker.duty_u16(0)
 
 
-freq: float = 30
-duration: float = 0.1  # seconds
+NOTES = {
+    'C4': 261, 'D4': 294, 'E4': 329, 'R': 0
+}
 
-print("Playing frequency (Hz):")
+MELODY = [
+    ('E4', 0.5), ('D4', 0.5), ('C4', 0.5),
+    ('E4', 0.5), ('D4', 0.5), ('C4', 0.5),
+    ('C4', 0.25), ('C4', 0.25), ('C4', 0.25), ('C4', 0.25),
+    ('D4', 0.25), ('D4', 0.25), ('D4', 0.25), ('D4', 0.25),
+    ('E4', 0.5), ('D4', 0.5), ('C4', 0.5)
+]
 
-for i in range(64):
-    print(freq)
-    playtone(freq, duration)
-    freq = int(freq * 1.1)
+print("Playing 'Hot Cross Buns':")
+
+for note, duration in MELODY:
+    frequency = NOTES[note]
+    print(f"Playing note: {note} ({frequency} Hz) for {duration} seconds")
+    playtone(frequency, duration)
 
 # Turn off the PWM
 quiet()
