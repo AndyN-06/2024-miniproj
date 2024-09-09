@@ -6,11 +6,33 @@ from machine import Pin
 import time
 import random
 import json
+import urequests as requests
+import network
 
 
-N: int = 3
+N: int = 10
 sample_ms = 10.0
 on_ms = 500
+
+THINGSPEAK_API_KEY = 'S0WONAE2OJT3CEOB'
+THINGSPEAK_URL = "http://api.thingspeak.com/update"
+
+SSID = ''
+PASSWORD = ''
+
+
+def connect_to_wifi(ssid, password):
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+    wlan.connect(ssid, password)
+
+    print("Connecting to WiFi...")
+    while not wlan.isconnected():
+        time.sleep(1)
+        print(".", end="")
+
+    print("\nWiFi connected!")
+    print(wlan.ifconfig())  # Print the IP address assigned
 
 
 def random_time_interval(tmin: float, tmax: float) -> float:
@@ -51,14 +73,32 @@ def scorer(t: list[int | None]) -> None:
     print(f"You missed the light {misses} / {len(t)} times")
 
     t_good = [x for x in t if x is not None]
+    
+    if t_good:
+        minTime = min(t_good)
+        maxTime = max(t_good)
+        avgTime = sum(t_good) / len(t_good)
+    else:
+        minTime = maxTime = avgTime = None
 
     print(t_good)
+    print(f"Min response time: {minTime} ms")
+    print(f"Max response time: {maxTime} ms")
+    print(f"Avg response time: {avgTime} ms")
+
 
     # add key, value to this dict to store the minimum, maximum, average response time
     # and score (non-misses / total flashes) i.e. the score a floating point number
     # is in range [0..1]
-    data = {}
+    data = {
+        "min_response_time": minTime,
+        "max_response_time": maxTime,
+        "avg_response_time": avgTime,
+        "misses": misses,
+        "total_flashes": len(t)
+    }
 
+    return data
     # %% make dynamic filename and write JSON
 
     now: tuple[int] = time.localtime()
@@ -70,9 +110,23 @@ def scorer(t: list[int | None]) -> None:
 
     write_json(filename, data)
 
+def upload_thingspeak(data: dict) -> None:
+    field_data = {
+        'api_key': THINGSPEAK_API_KEY,
+        'field1': data["min_response_time"],
+        'field2': data["max_response_time"],
+        'field3': data["avg_response_time"],
+        'field4': data["misses"],
+        'field5': data["total_flashes"]
+    }
+    
+    response = requests.get(THINGSPEAK_URL, params=field_data)
+    print(response.text)
 
 if __name__ == "__main__":
     # using "if __name__" allows us to reuse functions in other script files
+    connect_to_wifi(SSID, PASSWORD)
+    
 
     led = Pin("LED", Pin.OUT)
     button = Pin(16, Pin.IN, Pin.PULL_UP)
@@ -82,7 +136,7 @@ if __name__ == "__main__":
     blinker(3, led)
 
     for i in range(N):
-        time.sleep(random_time_interval(0.5, 5.0))
+        time.sleep(random_time_interval(0.5, 3.0))
 
         led.high()
 
@@ -99,4 +153,6 @@ if __name__ == "__main__":
 
     blinker(5, led)
 
-    scorer(t)
+    result = scorer(t)
+    
+    upload_thingspeak(result)
